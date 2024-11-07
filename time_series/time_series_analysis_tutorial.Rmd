@@ -1,0 +1,118 @@
+---
+title: "Time Series Analysis Tutorial"
+author: "Henry Bernreuter"
+date: "2024-10-03"
+output: html_document
+---
+# Introduction:
+## In this tutorial, we will perform time series analysis on a dataset containing search term analytics. We will load the data, create a time series object, partition the data, generate forecasts using different models, and evaluate their accuracy.
+
+## Load Data and Create Time Series ObjectFirst, we will load the data and create a time series object.
+
+```{r}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Clear Environment
+rm(list = ls())
+
+
+# Load data
+Search.data <- read.csv("Kaggle_SearchTerm.csv")
+
+# Create time series object
+Search.ts <- ts(Search.data$analytics, start = c(2014, 51), end = c(2019, 50), freq = 52)
+
+# Plot the time series
+plot(Search.ts, xlab = "Time", ylab = "Analytics")
+```
+
+# Partition the Data next, we will partition the data into training and validation sets.
+```{r setup, include=FALSE}
+
+
+# Partition the data
+nValid <- 100
+nTrain <- length(Search.ts) - nValid
+
+train.ts <- window(Search.ts, start = c(2014, 51), end = c(2018, 2))
+valid.ts <- window(Search.ts, start = c(2018, 3), end = c(2019, 50))
+
+```
+
+# Generate Naive and Seasonal Naive ForecastsWe will generate naive and seasonal naive forecasts and plot them.
+```{r setup, include=FALSE}
+library(forecast)
+
+# Generate naive and seasonal naive forecasts
+naive.pred <- naive(train.ts, h = nValid)
+snaive.pred <- snaive(train.ts, h = nValid)
+
+# Plot the forecasts
+plot(train.ts, ylab = "Analytics", xlab = "Time", bty = "l", xlim = c(2014.75, 2019), main = "")
+lines(naive.pred$mean, lwd = 2, col = "blue", lty = 1)
+lines(snaive.pred$mean, lwd = 2, col = "blue", lty = 1)
+lines(valid.ts, col = "grey20", lty = 3)
+
+# Evaluate the accuracy
+accuracy(naive.pred, valid.ts)
+accuracy(snaive.pred, valid.ts)
+```
+# Linear Trend ModelWe will fit a linear trend model and evaluate its accuracy.
+```{r setup, include=FALSE}
+# Fit a linear trend model
+train.lm <- tslm(train.ts ~ trend)
+summary(train.lm)
+
+# Generate forecasts
+train.lm.pred <- forecast(train.lm, h = nValid, level = 0)
+
+# Plot the forecasts
+plot(train.lm.pred, ylab = "Analytics", xlab = "Time", bty = "l", xaxt = "n", xlim = c(2014.75, 2019), main = "", flty = 2)
+lines(train.lm.pred$fitted, lwd = 2, col = "blue")
+lines(valid.ts)
+
+# Evaluate the accuracy
+accuracy(train.lm.pred, valid.ts)
+```
+
+# Quadratic Trend ModelWe will fit a quadratic trend model and evaluate its accuracy.
+
+```{r setup, include=FALSE}
+
+# Fit a quadratic trend model
+train.lm.poly.trend <- tslm(train.ts ~ trend + I(trend^2))
+summary(train.lm.poly.trend)
+
+# Generate forecasts
+train.lm.poly.trend.pred <- forecast(train.lm.poly.trend, h = nValid, level = 0)
+
+# Plot the forecasts
+plot(train.lm.poly.trend.pred, ylab = "Analytics", xlab = "Time", bty = "l", xlim = c(2014.75, 2019), main = "")
+lines(train.lm.poly.trend$fitted, lwd = 2)
+lines(valid.ts)
+
+# Evaluate the accuracy
+accuracy(train.lm.poly.trend.pred, valid.ts)
+```
+# Seasonality ModelWe will fit a seasonality model and evaluate its accuracy.
+```{r setup, include=FALSE}
+# Fit a seasonality model
+train.lm.season <- tslm(train.ts ~ season)
+summary(train.lm.season)
+
+# Generate forecasts
+train.lm.season.pred <- forecast(train.lm.season, h = nValid, level = 0)
+
+# Evaluate the accuracy
+accuracy(train.lm.season.pred, valid.ts)
+```
+
+```{r setup, include=FALSE}
+# Plot the forecasts
+plot(train.lm.season.pred, ylab = "Analytics", xlab = "Time", bty = "l", xlim = c(2014.75, 2019), main = "", flty = 2)
+lines(train.lm.poly.trend$fitted, lwd = 2)
+lines(valid.ts)
+```
+
+# ConclusionIn this tutorial, we performed time series analysis on a dataset containing search term analytics. We generated forecasts using naive, seasonal naive, linear trend, quadratic trend, and seasonality models, and evaluated their accuracy.
+

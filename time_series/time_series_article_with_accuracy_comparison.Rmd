@@ -1,0 +1,359 @@
+---
+title: "time_series_analysis"
+author: "Henry_Bernreuter"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Clear Environment
+rm(list = ls())
+
+# Load data
+Search.data <- read.csv("Kaggle_SearchTerm.csv")
+
+head(Search.data)
+```
+# Create time series object and Plot
+```{r}
+Search.ts <- ts(Search.data$analytics, start = c(2014, 51), end = c(2019, 50), freq = 52)
+
+# Plot the time series
+plot(Search.ts, xlab = "Time", ylab = "Analytics")
+```
+# Partition the Data next, we will partition the data into training and validation sets.
+```{r}
+# Partition the data
+nValid <- 100
+nTrain <- length(Search.ts) - nValid
+
+train.ts <- window(Search.ts, start = c(2014, 51), end = c(2018, 2))
+valid.ts <- window(Search.ts, start = c(2018, 3), end = c(2019, 50))
+```
+
+# Generate Naive and Seasonal Naive ForecastsWe will generate naive and seasonal naive forecasts and plot them.
+```{r}
+library(forecast)
+
+# Generate naive and seasonal naive forecasts
+naive.pred <- naive(train.ts, h = nValid)
+snaive.pred <- snaive(train.ts, h = nValid)
+
+# Plot the forecasts
+plot(train.ts, ylab = "Analytics", xlab = "Time", bty = "l", xlim = c(2014.75, 2019), main = "")
+lines(naive.pred$mean, lwd = 2, col = "blue", lty = 1)
+lines(snaive.pred$mean, lwd = 2, col = "blue", lty = 1)
+lines(valid.ts, col = "grey20", lty = 3)
+
+```
+# Evaluate the accuracy
+## Key Metrics Explained:
+### ME (Mean Error): Tells us the average error in predictions. A smaller value means better predictions.
+### RMSE (Root Mean Square Error): Measures the average size of errors in predictions. Lower is better; it’s like a powerful version of average error.
+### MAE (Mean Absolute Error): The average of all absolute errors, so it ignores whether the errors are positive or negative.
+### MPE (Mean Percentage Error): Shows the average error as a percentage. Negative value means predictions are too high; positive means too low.
+### MAPE (Mean Absolute Percentage Error): The average of absolute percentage errors. It’s a percentage so it’s easier to understand.
+### MASE (Mean Absolute Scaled Error): Normalizes the MAE to make it easier to compare models.
+### ACF1 (Autocorrelation of residuals at lag 1): Checks if there’s any pattern left in the errors. Values close to 0 mean there’s no pattern, which is good.
+### Theil's U: Compares your model's performance to a simple guessing method. Values closer to 0 mean your model is better than guessing.
+```{r}
+accuracy(naive.pred, valid.ts)
+accuracy(snaive.pred, valid.ts)
+```
+# What Do the Numbers Mean?
+## Training Set: This is the data used to train the model.
+## Test Set: This is new data used to test how well the model performs on unseen data.
+
+### Higher RMSE, MAE, and MAPE in the test set means the model isn’t as good at predicting new data as it is at predicting the training data. It indicates overfitting, where the model is too tuned to the training data and not general enough.
+
+# Lets try Linear Trend ModelWe will fit a linear trend model and evaluate its accuracy.
+```{r}
+# Fit a linear trend model
+train.lm <- tslm(train.ts ~ trend)
+summary(train.lm)
+
+# Generate forecasts
+train.lm.pred <- forecast(train.lm, h = nValid, level = 0)
+
+# Plot the forecasts
+plot(train.lm.pred, ylab = "Analytics", xlab = "Time", bty = "l", xaxt = "n", xlim = c(2014.75, 2019), main = "", flty = 2)
+lines(train.lm.pred$fitted, lwd = 2, col = "blue")
+lines(valid.ts)
+
+```
+
+# Evaluate the accuracy
+```{r}
+accuracy(train.lm.pred, valid.ts)
+```
+# Comparison:
+
+## Training Set Performance:
+### The new model has a RMSE of 7.6912, higher than the initial RMSE of 5.6868, indicating worse fit on training data.
+### MAE is higher in this new model (5.5775 vs 3.4088), again suggesting a less accurate fit on training data.
+### MAPE is higher (7.7046 vs 4.7149), showing larger relative errors.
+
+### Test Set Performance:
+### RMSE is slightly higher in the new model (9.3684 vs 9.2617), indicating similar performance.
+### MAE is slightly higher (7.7101 vs 7.4200).
+### MAPE is slightly better in the new model (11.7688 vs 12.3517), suggesting smaller relative errors.
+
+### Theil's U is slightly lower in the new model (1.9663 vs 2.2574), indicating slightly better predictive performance relative to a naïve benchmark.
+
+# Conclusion:
+### Both models have their pros and cons. The initial model fits the training data better, while the new model has slightly improved predictive performance on the test set as indicated by Theil's U and MAPE. Depending on the specific goals, you may prioritize either model for better training fit or slightly improved generalization.
+
+# Linear Trend Mode: Let's fit a linear trend model and evaluate its accuracy.
+```{r}
+# Fit a linear trend model
+train.lm <- tslm(train.ts ~ trend)
+
+# Generate forecasts
+train.lm.pred <- forecast(train.lm, h = nValid, level = 0)
+
+# Plot the forecasts
+plot(train.lm.pred, ylab = "Analytics", xlab = "Time", bty = "l", xaxt = "n", xlim = c(2014.75, 2019), main = "", flty = 2)
+lines(train.lm.pred$fitted, lwd = 2, col = "blue")
+lines(valid.ts)
+```
+# Evaluate the accuracy
+```{r}
+accuracy(train.lm.pred, valid.ts)
+```
+# Interpretation:
+## Training Set Performance:
+### ME: Close to 0, indicating very minimal bias in predictions.
+### RMSE and MAE: Indicate the average size of errors. Higher values suggest a moderate fit but not as tightly as desired.
+### MAPE: Around 7.7046%, suggesting some level of prediction errors relative to actual values.
+### MASE: The 0.6147 value suggests moderate prediction accuracy relative to naive forecasting.
+### ACF1: Value of 0.6866 indicates some autocorrelation in residuals, suggesting patterns may still exist in the model’s errors.
+
+## Test Set Performance:
+### ME: 6.4639, indicating a positive bias in predictions (overestimation).
+### RMSE and MAE: Higher than the training set, suggesting the model struggles more with new data.
+### MAPE: 11.7688%, indicating prediction errors relative to actual values.
+### MASE: At 0.8497, shows prediction accuracy is somewhat worse than naive forecasting.
+### ACF1: 0.8164, indicating significant autocorrelation in residuals, suggesting remaining patterns in errors.
+### Theil's U: 1.9663, which is better than the previous model with a higher value, indicating relatively better predictive performance.
+
+# Conclusion:
+### The new model still shows higher errors on the test set compared to the training set, indicating potential overfitting. However, Theil's U suggests a slight improvement in predictive performance over the previous model.
+### The overall takeaway is that while the new model provides somewhat better predictive performance (as indicated by a lower Theil's U), it still faces challenges, especially with the bias in predictions seen in the ME value. Further refinements may be needed to improve generalization and reduce overfitting.
+
+# Quadratic Trend Model:  Let's  fit a quadratic trend model and evaluate its accuracy.
+```{r}
+# Fit a quadratic trend model
+train.lm.poly.trend <- tslm(train.ts ~ trend + I(trend^2))
+#summary(train.lm.poly.trend)
+
+# Generate forecasts
+train.lm.poly.trend.pred <- forecast(train.lm.poly.trend, h = nValid, level = 0)
+
+# Plot the forecasts
+plot(train.lm.poly.trend.pred, ylab = "Analytics", xlab = "Time", bty = "l", xlim = c(2014.75, 2019), main = "")
+lines(train.lm.poly.trend$fitted, lwd = 2)
+lines(valid.ts)
+```
+# Evaluate the accuracy
+```{r}
+accuracy(train.lm.poly.trend.pred, valid.ts)
+```
+# Interpretation:
+## Training Set Performance:
+### ME is essentially zero, indicating no significant bias.
+### RMSE and MAE values suggest a moderate fit.
+### MAPE is around 6.79%, indicating relatively moderate prediction errors.
+### MASE is 0.5317596, which is good.
+### ACF1 value of 0.6433418 indicates some autocorrelation in the residuals, suggesting the model's errors have some patterns.
+
+## Test Set Performance:
+### ME of -11.57856 indicates a significant overestimation bias.
+### RMSE and MAE are quite high, indicating the model struggles significantly with new data.
+### MAPE of 19.452217 is quite high, suggesting significant relative prediction errors.
+### MASE of 1.3307517 indicates worse performance compared to the training set.
+### ACF1 of 0.8411651 shows significant autocorrelation in residuals.
+### Theil's U of 3.157382 indicates the model is performing significantly worse compared to a naive forecasting method.
+# Conclusion:
+## This new model shows a high degree of overfitting, as indicated by significantly worse performance on the test set compared to the training set. The high Theil's U value suggests the model is less effective at predicting new data than a naive approach. Further model refinement and validation methods are required to improve its generalization ability.
+
+# Seasonality ModelWe will fit a seasonality model and evaluate its accuracy.
+```{r}
+# Fit a seasonality model
+train.lm.season <- tslm(train.ts ~ season)
+#summary(train.lm.season)
+
+# Generate forecasts
+train.lm.season.pred <- forecast(train.lm.season, h = nValid, level = 0)
+
+# Plot the forecasts
+plot(train.lm.season.pred, ylab = "Analytics", xlab = "Time", main = "Seasonality Model Forecast")
+lines(train.lm.season.pred$fitted, col = "blue", lwd = 2)
+lines(valid.ts, col = "red", lty = 2)
+legend("topright", legend = c("Fitted", "Validation"), col = c("blue", "red"), lty = c(1, 2))
+
+
+```
+
+# Evaluate the accuracy
+```{r}
+accuracy(train.lm.season.pred, valid.ts)
+```
+# Interpretation:
+## Training Set Performance:
+### ME: Close to zero, indicating almost no bias.
+### RMSE and MAE: These values suggest the average size of errors is moderate for the training set.
+### MAPE: Around 8.63%, indicating moderate relative prediction errors.
+### MASE: At 0.7600638, suggesting reasonable prediction accuracy relative to naive forecasts.
+### ACF1: Value of 0.9357806 indicates a strong pattern remaining in the residuals, suggesting that the model's errors are not completely random.
+
+## Test Set Performance:
+### ME: -13.47917, indicating the model tends to overestimate significantly.
+### RMSE and MAE: High values suggest the model struggles with new data and makes significant errors.
+### MAPE: 21.090498, indicating substantial relative prediction errors.
+### MASE: 1.4854592, showing worse performance compared to the training set.
+### ACF1: 0.7514195, indicating significant autocorrelation in residuals.
+### Theil's U: 3.207589, suggests the model performs significantly worse compared to a naive forecasting method.
+
+# ARIMA (AutoRegressive Integrated Moving Average)
+## ARIMA models are a popular choice for time series forecasting. They can handle both seasonal and non-seasonal data and are effective at capturing various patterns.
+```{r}
+# Fit an ARIMA model
+arima.model <- auto.arima(train.ts)
+
+# Generate forecasts
+arima.pred <- forecast(arima.model, h = nValid)
+
+# Plot the forecasts
+plot(arima.pred, ylab = "Analytics", xlab = "Time", main = "ARIMA Model Forecast")
+lines(valid.ts, col = "red", lty = 2)
+legend("topright", legend = c("ARIMA Forecast", "Validation Data"), col = c("blue", "red"), lty = c(1, 2))
+
+
+```
+
+# Evaluate the accuracy
+```{r}
+accuracy(arima.pred, valid.ts)
+
+```
+# Exponential Smoothing (ETS)
+## ETS models are another effective approach that handle different types of seasonality and trends.
+```{r}
+# Fit an ETS model
+ets.model <- ets(train.ts)
+
+# Generate forecasts
+ets.pred <- forecast(ets.model, h = nValid)
+
+# Plot the forecasts
+plot(ets.pred, ylab = "Analytics", xlab = "Time", main = "ETS Model Forecast")
+lines(valid.ts, col = "red", lty = 2)
+legend("topright", legend = c("ETS Forecast", "Validation Data"), col = c("blue", "red"), lty = c(1, 2))
+
+
+```
+
+```{r}
+# Evaluate the accuracy
+accuracy(ets.pred, valid.ts)
+```
+# Prophet
+## Prophet, developed by Facebook, is a robust and flexible model specifically designed for forecasting time series data that may contain multiple seasonalities and holiday effects.
+
+```{r}
+# Install and load Prophet
+if (!requireNamespace("prophet", quietly = TRUE)) {
+  install.packages("prophet")
+}
+library(prophet)
+
+# Prepare the data for Prophet
+df <- data.frame(ds = as.Date(Search.data$week), y = Search.data$analytics)
+
+# Fit the Prophet model
+prophet.model <- prophet(df)
+
+# Create future dataframe
+future <- make_future_dataframe(prophet.model, periods = nValid, freq = "week")
+
+# Generate forecasts
+prophet.pred <- predict(prophet.model, future)
+
+# Plot the forecasts
+dyplot.prophet(prophet.model, prophet.pred) + 
+  labs(y = "Analytics", x = "Time", title = "Prophet Model Forecast")
+
+# Evaluate the accuracy (manually calculate for validation period)
+validation.pred <- tail(prophet.pred$yhat, nValid)
+validation.actual <- Search.data$analytics[(nTrain+1):(nTrain+nValid)]
+
+me <- mean(validation.pred - validation.actual)
+rmse <- sqrt(mean((validation.pred - validation.actual)^2))
+mae <- mean(abs(validation.pred - validation.actual))
+mpe <- mean((validation.pred - validation.actual) / validation.actual) * 100
+mape <- mean(abs((validation.pred - validation.actual) / validation.actual)) * 100
+
+# Print accuracy metrics
+cat("ME:", me, "\nRMSE:", rmse, "\nMAE:", mae, "\nMPE:", mpe, "\nMAPE:", mape, "\n")
+
+```
+# Combine All accuracy metrics into a data.table 
+```{r}
+library(data.table)
+
+# Function to compile accuracy metrics into a data.table
+compile_accuracies <- function(...) {
+  # Create an empty list to store each accuracy result
+  accuracy_list <- list(...)
+  
+  # Initialize an empty data.table to store the results
+  accuracy_dt <- data.table(
+    Model = character(),
+    Set = character(),
+    ME = numeric(),
+    RMSE = numeric(),
+    MAE = numeric(),
+    MPE = numeric(),
+    MAPE = numeric(),
+    MASE = numeric(),
+    ACF1 = numeric(),
+    TheilU = numeric()
+  )
+  
+  # Iterate through each accuracy result and append to the data.table
+  for (accuracy in accuracy_list) {
+    accuracy_dt <- rbind(
+      accuracy_dt, 
+      data.table(
+        Model = accuracy$model,
+        Set = accuracy$set,
+        ME = accuracy$metrics[1],
+        RMSE = accuracy$metrics[2],
+        MAE = accuracy$metrics[3],
+        MPE = accuracy$metrics[4],
+        MAPE = accuracy$metrics[5],
+        MASE = accuracy$metrics[6],
+        ACF1 = accuracy$metrics[7],
+        TheilU = accuracy$metrics[8]
+      )
+    )
+  }
+  
+  return(accuracy_dt)
+}
+
+# Example usage:
+# Define accuracy metrics as lists
+naive_accuracy_train <- list(model = "Naive", set = "Training", metrics = c(0.06289308, 5.686794, 3.408805, -0.281141, 4.714866, 0.3756642, -0.07703526, NA))
+naive_accuracy_test <- list(model = "Naive", set = "Test", metrics = c(-7.06000000, 9.261749, 7.420000, -11.877244, 12.351676, 0.8177143, 0.76978673, 2.257373))
+linear_accuracy_train <- list(model = "Linear", set = "Training", metrics = c(-7.518519, 11.74498, 9.074074, -10.41603, 12.46036, 1.0000000, 0.8954372, NA))
+linear_accuracy_test <- list(model = "Linear", set = "Test", metrics = c(-8.380000, 10.05883, 8.520000, -13.21483, 13.40356, 0.9389388, 0.7863313, 2.211848))
+
+# Compile the accuracies into a data.table
+all_accuracies <- compile_accuracies(naive_accuracy_train, naive_accuracy_test, linear_accuracy_train, linear_accuracy_test)
+print(all_accuracies)
+
+```
+
